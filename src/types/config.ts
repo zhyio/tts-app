@@ -1,16 +1,12 @@
-import type { Voice, ResponseFormat } from "./api"
+import type { Voice } from "./api"
 
 export interface ConfigState {
   apiBaseUrl: string
   modelName: string
   voice: Voice
-  responseFormat: ResponseFormat
-  speed: number
   setApiBaseUrl: (url: string) => void
   setModelName: (name: string) => void
   setVoice: (voice: Voice) => void
-  setResponseFormat: (format: ResponseFormat) => void
-  setSpeed: (speed: number) => void
 }
 
 export interface ApiKeyState {

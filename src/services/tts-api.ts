@@ -1,73 +1,110 @@
-import type { TTSRequest, TTSResponse } from "@/types/api"
+import type { ModelType, Voice } from "@/types/api"
 
-interface TTSConfig {
-  apiBaseUrl: string
-  apiKey: string
-  modelName: string
+export interface TTSGenerateParams {
+  config: {
+    apiBaseUrl: string
+    apiKey: string
+    modelName: ModelType
+  }
+  mainText: string
+  emotionTags?: string[]
+  actionTags?: string[]
+  directorText?: string
+  presetVoice?: Voice
+  voiceDesignPrompt?: string
+  cloneBase64?: string
 }
 
-interface ChatCompletionResponse {
-  choices: {
-    message: {
-      audio?: {
-        data?: string // base64 encoded audio
-        id?: string
-      }
-      content?: string
-    }
-  }[]
-  usage?: {
-    completion_tokens?: number
-    prompt_tokens?: number
+export interface TTSResponse {
+  audioBlob: Blob
+  audioUrl: string
+  format: "wav"
+}
+
+function buildMessages(params: TTSGenerateParams): [
+  { role: "user"; content: string },
+  { role: "assistant"; content: string }
+] {
+  let userContent = ""
+
+  if (params.config.modelName === "mimo-v2.5-tts-voicedesign") {
+    userContent = params.voiceDesignPrompt || ""
+  } else {
+    userContent = params.directorText || ""
   }
+
+  let assistantContent = params.mainText
+
+  if (params.emotionTags && params.emotionTags.length > 0) {
+    assistantContent = params.emotionTags.join("") + assistantContent
+  }
+
+  if (params.actionTags && params.actionTags.length > 0) {
+    assistantContent = assistantContent + params.actionTags.join("")
+  }
+
+  return [
+    { role: "user", content: userContent },
+    { role: "assistant", content: assistantContent },
+  ]
+}
+
+function buildAudioConfig(
+  params: TTSGenerateParams
+): { voice: string; format: "wav" } | undefined {
+  if (params.config.modelName === "mimo-v2.5-tts-voicedesign") {
+    return undefined
+  }
+
+  let voiceValue = ""
+  if (params.config.modelName === "mimo-v2.5-tts") {
+    voiceValue = params.presetVoice || "mimo_default"
+  } else if (params.config.modelName === "mimo-v2.5-tts-voiceclone") {
+    voiceValue = params.cloneBase64 || ""
+  }
+
+  return { voice: voiceValue, format: "wav" }
 }
 
 export async function generateSpeech(
-  config: TTSConfig,
-  request: TTSRequest,
+  params: TTSGenerateParams,
   onProgress?: (progress: number) => void,
 ): Promise<TTSResponse> {
-  const baseUrl = config.apiBaseUrl.replace(/\/+$/, "")
+  const baseUrl = params.config.apiBaseUrl.replace(/\/+$/, "")
   const url = `${baseUrl}/chat/completions`
 
-  const inputLen = request.input.length
+  const inputLen = params.mainText.length
   const maxTokens = Math.min(Math.max(4000, Math.ceil(inputLen * 15)), 50000)
 
-  const body = {
-    model: config.modelName,
+  const messages = buildMessages(params)
+  const audioConfig = buildAudioConfig(params)
+
+  const body: Record<string, unknown> = {
+    model: params.config.modelName,
     modalities: ["text", "audio"],
-    audio: {
-      voice: request.voice || "mimo_default",
-      format: request.response_format || "mp3",
-    },
     max_tokens: maxTokens,
-    messages: [
-      {
-        role: "user",
-        content: "请朗读以下文字",
-      },
-      {
-        role: "assistant",
-        content: request.input,
-      },
-    ],
+    messages,
+    stream: false,
+  }
+
+  if (audioConfig && audioConfig.voice) {
+    body.audio = audioConfig
   }
 
   if (import.meta.env.DEV) {
     console.log("[TTS API] Request:", {
       url,
       model: body.model,
-      voice: body.audio.voice,
-      format: body.audio.format,
-      max_tokens: body.max_tokens,
-      inputLength: inputLen,
+      voice: (body.audio as any)?.voice,
+      directorText: messages[0].content,
+      assistantPreview: messages[1].content.slice(0, 100),
     })
   }
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${config.apiKey}`,
+      Authorization: `Bearer ${params.config.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -86,7 +123,7 @@ export async function generateSpeech(
     throw new Error(message)
   }
 
-  const data: ChatCompletionResponse = await response.json()
+  const data = await response.json()
 
   if (import.meta.env.DEV) {
     console.log("[TTS API] Response:", {
@@ -94,11 +131,9 @@ export async function generateSpeech(
       model: data.model,
       usage: data.usage,
       hasAudio: !!data.choices?.[0]?.message?.audio?.data,
-      audioId: data.choices?.[0]?.message?.audio?.id,
     })
   }
 
-  // Extract base64 audio from response
   const audioData = data.choices?.[0]?.message?.audio?.data
   if (!audioData) {
     const completionTokens = data.usage?.completion_tokens ?? 0
@@ -107,16 +142,7 @@ export async function generateSpeech(
     )
   }
 
-  // Check if audio data seems too short
-  if (audioData.length < 1000 && inputLen > 100) {
-    console.warn(
-      `[TTS API] Warning: audio data seems short (${audioData.length} chars base64) for input text (${inputLen} chars)`
-    )
-  }
-
-  // Convert base64 to Blob
-  const format = request.response_format || "mp3"
-  const mimeType = getMimeType(format)
+  const mimeType = "audio/wav"
   const binaryString = atob(audioData)
   const bytes = new Uint8Array(binaryString.length)
   for (let i = 0; i < binaryString.length; i++) {
@@ -127,16 +153,5 @@ export async function generateSpeech(
 
   onProgress?.(1)
 
-  return { audioBlob, audioUrl, format }
-}
-
-function getMimeType(format: string): string {
-  const map: Record<string, string> = {
-    mp3: "audio/mpeg",
-    opus: "audio/opus",
-    aac: "audio/aac",
-    flac: "audio/flac",
-    wav: "audio/wav",
-  }
-  return map[format] || "audio/mpeg"
+  return { audioBlob, audioUrl, format: "wav" }
 }

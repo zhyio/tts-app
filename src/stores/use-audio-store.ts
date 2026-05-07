@@ -1,34 +1,41 @@
 import { create } from "zustand"
-import type { ResponseFormat, Voice } from "@/types/api"
-import { generateSpeech } from "@/services/tts-api"
-import { generateEstimatedSubtitles } from "@/services/subtitle-service"
+import { useConfigStore } from "@/stores/use-config-store"
+import type { Voice } from "@/types/api"
+import { generateSpeech as apiGenerateSpeech } from "@/services/tts-api"
 import type { SubtitleSegment } from "@/services/subtitle-service"
-import { useConfigStore } from "./use-config-store"
 
 export interface AudioState {
   audioBlob: Blob | null
   audioUrl: string | null
-  audioFormat: ResponseFormat
+  audioFormat: "wav"
   sourceText: string
   subtitleSegments: SubtitleSegment[]
   isGenerating: boolean
   generationProgress: number
   generationError: string | null
-  generateSpeech: (text: string, voice: Voice, format: ResponseFormat, speed: number, pitch?: number, emotion?: string) => Promise<void>
+  generateSpeech: (params: {
+    mainText: string
+    emotionTags?: string[]
+    actionTags?: string[]
+    directorText?: string
+    presetVoice?: Voice
+    voiceDesignPrompt?: string
+    cloneBase64?: string
+  }) => Promise<void>
   clearAudio: () => void
 }
 
 export const useAudioStore = create<AudioState>()((set, get) => ({
   audioBlob: null,
   audioUrl: null,
-  audioFormat: "mp3",
+  audioFormat: "wav",
   sourceText: "",
   subtitleSegments: [],
   isGenerating: false,
   generationProgress: 0,
   generationError: null,
 
-  generateSpeech: async (text, voice, format, speed, pitch, emotion) => {
+  generateSpeech: async (params) => {
     const { apiBaseUrl, modelName, apiKey } = useConfigStore.getState()
 
     if (!apiKey) {
@@ -36,7 +43,6 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       return
     }
 
-    // Clean up previous audio URL
     const prevUrl = get().audioUrl
     if (prevUrl) URL.revokeObjectURL(prevUrl)
 
@@ -46,34 +52,44 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       generationError: null,
       audioBlob: null,
       audioUrl: null,
-      sourceText: text,
+      sourceText: params.mainText,
     })
 
     try {
-      const body = {
-        model: modelName,
-        input: text,
-        voice,
-        response_format: format,
-        speed,
-      };
-      if (pitch !== undefined) (body as any).pitch = pitch;
-      if (emotion !== undefined) (body as any).emotion = emotion;
-
-      const result = await generateSpeech(
-        { apiBaseUrl, apiKey, modelName },
-        body,
+      const result = await apiGenerateSpeech(
+        {
+          config: { apiBaseUrl, apiKey, modelName },
+          mainText: params.mainText,
+          emotionTags: params.emotionTags,
+          actionTags: params.actionTags,
+          directorText: params.directorText,
+          presetVoice: params.presetVoice,
+          voiceDesignPrompt: params.voiceDesignPrompt,
+          cloneBase64: params.cloneBase64,
+        },
         (progress) => set({ generationProgress: progress })
       )
 
-      // Estimate subtitle segments (we need duration from the audio element later,
-      // but for now we generate segments that will be rescaled when duration is known)
-      const segments = generateEstimatedSubtitles(text, 0)
+      // Simple subtitle segments based on punctuation
+      const text = params.mainText
+      const segments: SubtitleSegment[] = []
+      const sentences = text.split(/([。！？\n]+)/)
+      let currentTime = 0
+      for (const sentence of sentences) {
+        if (!sentence.trim()) continue
+        const duration = sentence.length * 0.1
+        segments.push({
+          text: sentence,
+          startTime: currentTime,
+          endTime: currentTime + duration,
+        })
+        currentTime += duration
+      }
 
       set({
         audioBlob: result.audioBlob,
         audioUrl: result.audioUrl,
-        audioFormat: result.format,
+        audioFormat: "wav",
         subtitleSegments: segments,
         isGenerating: false,
         generationProgress: 1,
@@ -94,7 +110,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
     set({
       audioBlob: null,
       audioUrl: null,
-      audioFormat: "mp3",
+      audioFormat: "wav",
       sourceText: "",
       subtitleSegments: [],
       isGenerating: false,

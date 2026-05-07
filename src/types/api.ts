@@ -1,3 +1,8 @@
+export type ModelType =
+  | "mimo-v2.5-tts"
+  | "mimo-v2.5-tts-voicedesign"
+  | "mimo-v2.5-tts-voiceclone"
+
 export type Voice =
   | "mimo_default"
   | "冰糖"
@@ -7,36 +12,18 @@ export type Voice =
   | "Mia"
   | "Chloe"
   | "Milo"
-
-export type Emotion = "neutral" | "happy" | "sad" | "angry" | "fearful" | "disgusted" | "surprised"
-
-export type ResponseFormat = "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm"
-
-export interface TTSRequest {
-  model: string
-  input: string
-  voice: Voice
-  response_format?: ResponseFormat
-  speed?: number
-  pitch?: number
-  emotion?: string
-}
+  | "Dean"
 
 export interface TTSResponse {
   audioBlob: Blob
   audioUrl: string
-  format: ResponseFormat
+  format: "wav"
 }
 
-export const VOICE_OPTIONS: { value: Voice; label: string }[] = [
-  { value: "mimo_default", label: "MiMo Default" },
-  { value: "冰糖", label: "Bingtang" },
-  { value: "茉莉", label: "Moli" },
-  { value: "苏打", label: "Suda" },
-  { value: "白桦", label: "Baihua" },
-  { value: "Mia", label: "Mia" },
-  { value: "Chloe", label: "Chloe" },
-  { value: "Milo", label: "Milo" },
+export const MODEL_OPTIONS: { value: ModelType; label: string }[] = [
+  { value: "mimo-v2.5-tts", label: "预置音色模式" },
+  { value: "mimo-v2.5-tts-voicedesign", label: "音色设计模式" },
+  { value: "mimo-v2.5-tts-voiceclone", label: "音色克隆模式" },
 ]
 
 export const VOICE_ZH_OPTIONS: { value: Voice; label: string }[] = [
@@ -48,21 +35,5 @@ export const VOICE_ZH_OPTIONS: { value: Voice; label: string }[] = [
   { value: "Mia", label: "Mia" },
   { value: "Chloe", label: "Chloe" },
   { value: "Milo", label: "Milo" },
+  { value: "Dean", label: "Dean" },
 ]
-
-export const FORMAT_OPTIONS: { value: ResponseFormat; label: string }[] = [
-  { value: "mp3", label: "MP3" },
-  { value: "opus", label: "Opus" },
-  { value: "aac", label: "AAC" },
-  { value: "flac", label: "FLAC" },
-  { value: "wav", label: "WAV" },
-]
-
-export const MIME_MAP: Record<ResponseFormat, string> = {
-  mp3: "audio/mpeg",
-  opus: "audio/opus",
-  aac: "audio/aac",
-  flac: "audio/flac",
-  wav: "audio/wav",
-  pcm: "audio/pcm",
-}

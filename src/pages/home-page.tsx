@@ -22,7 +22,7 @@ export function HomePage() {
               文本转语音
             </h2>
             <p className="text-sm text-muted-foreground">
-              输入文本，选择音色，一键生成自然流畅的语音
+              支持预置音色、音色设计、音色克隆三种模式，输入文本，一键生成自然流畅的语音
             </p>
           </div>
         </div>
