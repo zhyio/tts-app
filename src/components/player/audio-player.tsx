@@ -12,6 +12,7 @@ export function AudioPlayer() {
   const {
     audioUrl,
     audioBlob,
+    audioFileName,
     audioFormat,
     subtitleSegments,
   } = useAudioStore()
@@ -74,7 +75,7 @@ export function AudioPlayer() {
               volume={player.volume}
               onVolumeChange={player.setVolume}
             />
-            <DownloadButton audioBlob={audioBlob} format={audioFormat} />
+            <DownloadButton audioBlob={audioBlob} format={audioFormat} fileName={audioFileName} />
           </div>
         </div>
       </div>

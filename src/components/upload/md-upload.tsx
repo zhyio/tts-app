@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { parseChapters } from "@/lib/md-parser"
 
 interface MdUploadProps {
-  onParsed: (chapters: ReturnType<typeof parseChapters>) => void
+  onParsed: (chapters: ReturnType<typeof parseChapters>, fileName: string) => void
 }
 
 export function MdUpload({ onParsed }: MdUploadProps) {
@@ -31,7 +31,7 @@ export function MdUpload({ onParsed }: MdUploadProps) {
           setError("未找到章节标记（需要包含「# 第X章」格式的标题）")
           return
         }
-        onParsed(chapters)
+        onParsed(chapters, file.name.replace(/\.md$/i, ""))
       }
       reader.onerror = () => {
         setError("文件读取失败")

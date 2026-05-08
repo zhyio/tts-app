@@ -7,6 +7,7 @@ import type { SubtitleSegment } from "@/services/subtitle-service"
 export interface AudioState {
   audioBlob: Blob | null
   audioUrl: string | null
+  audioFileName: string | null
   audioFormat: "wav"
   sourceText: string
   subtitleSegments: SubtitleSegment[]
@@ -28,6 +29,7 @@ export interface AudioState {
 export const useAudioStore = create<AudioState>()((set, get) => ({
   audioBlob: null,
   audioUrl: null,
+  audioFileName: null,
   audioFormat: "wav",
   sourceText: "",
   subtitleSegments: [],
@@ -53,6 +55,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       audioBlob: null,
       audioUrl: null,
       sourceText: params.mainText,
+      audioFileName: null,
     })
 
     try {
@@ -116,6 +119,7 @@ export const useAudioStore = create<AudioState>()((set, get) => ({
       isGenerating: false,
       generationProgress: 0,
       generationError: null,
+      audioFileName: null,
     })
   },
 }))

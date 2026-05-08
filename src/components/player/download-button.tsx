@@ -5,16 +5,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 interface DownloadButtonProps {
   audioBlob: Blob | null
   format: string
+  fileName?: string | null
 }
 
-export function DownloadButton({ audioBlob, format }: DownloadButtonProps) {
+export function DownloadButton({ audioBlob, format, fileName }: DownloadButtonProps) {
   const handleDownload = () => {
     if (!audioBlob) return
 
     const url = URL.createObjectURL(audioBlob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `tts-output.${format}`
+    a.download = fileName ? `${fileName}.${format}` : `tts-output.${format}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

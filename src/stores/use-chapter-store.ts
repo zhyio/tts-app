@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { useConfigStore } from "@/stores/use-config-store"
 import { generateSpeech as apiGenerateSpeech } from "@/services/tts-api"
+import { useAudioStore } from "@/stores/use-audio-store"
 import type { Chapter } from "@/lib/md-parser"
 
 export type ChapterStatus = "waiting" | "generating" | "done" | "error"
@@ -16,10 +17,13 @@ export interface ChapterAudio {
 
 interface ChapterState {
   chapters: ChapterAudio[]
+  mdFileName: string | null
   isGeneratingAll: boolean
-  setChapters: (chapters: Chapter[]) => void
+  isGeneratingFull: boolean
+  setChapters: (chapters: Chapter[], mdFileName?: string) => void
   generateChapter: (index: number) => Promise<void>
   generateAll: () => Promise<void>
+  generateFullDocument: () => Promise<void>
   clearChapters: () => void
 }
 
@@ -36,10 +40,12 @@ function buildChapterAudio(chapter: Chapter): ChapterAudio {
 
 export const useChapterStore = create<ChapterState>()((set, get) => ({
   chapters: [],
+  mdFileName: null,
   isGeneratingAll: false,
+  isGeneratingFull: false,
 
-  setChapters: (chapters) => {
-    set({ chapters: chapters.map(buildChapterAudio), isGeneratingAll: false })
+  setChapters: (chapters, mdFileName?) => {
+    set({ chapters: chapters.map(buildChapterAudio), isGeneratingAll: false, isGeneratingFull: false, mdFileName: mdFileName ?? null })
   },
 
   generateChapter: async (index: number) => {
@@ -115,11 +121,47 @@ export const useChapterStore = create<ChapterState>()((set, get) => ({
     set({ isGeneratingAll: false })
   },
 
+  generateFullDocument: async () => {
+    const { chapters, mdFileName } = get()
+    if (chapters.length === 0) return
+
+    const { apiBaseUrl, modelName, apiKey } = useConfigStore.getState()
+    if (!apiKey) return
+
+    set({ isGeneratingFull: true })
+
+    const fullText = chapters.map((ca) => `${ca.chapter.rawTitle}\n${ca.chapter.content}`).join("\n\n")
+
+    try {
+      const result = await apiGenerateSpeech(
+        {
+          config: { apiBaseUrl, apiKey, modelName },
+          mainText: fullText,
+          directorText: useConfigStore.getState().directorModeText || undefined,
+        },
+        () => {}
+      )
+
+      useAudioStore.getState().clearAudio()
+      useAudioStore.setState({
+        audioBlob: result.audioBlob,
+        audioUrl: result.audioUrl,
+        audioFileName: mdFileName,
+        sourceText: fullText,
+        isGenerating: false,
+      })
+    } catch {
+      // error handled silently
+    }
+
+    set({ isGeneratingFull: false })
+  },
+
   clearChapters: () => {
     const { chapters } = get()
     for (const ca of chapters) {
       if (ca.audioUrl) URL.revokeObjectURL(ca.audioUrl)
     }
-    set({ chapters: [], isGeneratingAll: false })
+    set({ chapters: [], mdFileName: null, isGeneratingAll: false, isGeneratingFull: false })
   },
 }))

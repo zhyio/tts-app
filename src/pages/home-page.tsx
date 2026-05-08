@@ -17,8 +17,8 @@ export function HomePage() {
   const isGenerating = useAudioStore((s) => s.isGenerating)
   const setChapters = useChapterStore((s) => s.setChapters)
 
-  const handleParsed = (chapters: Chapter[]) => {
-    setChapters(chapters)
+  const handleParsed = (chapters: Chapter[], fileName?: string) => {
+    setChapters(chapters, fileName)
   }
 
   return (
